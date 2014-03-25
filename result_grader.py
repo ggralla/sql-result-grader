@@ -56,7 +56,7 @@ class ResultsTester():
         self.grader_cols = grader_cols
         self.grader_rows = grader_rows
 
-        self.required_tests = [self.rows_count_test, self.cols_count_test, self.rows_unsorted_test]
+        self.required_tests = [self.rows_count_test, self.cols_count_test, self.rows_unsorted_test, self.rows_sanity_test, self.cols_sanity_test]
         self.optional_tests = [self.rows_exact_test, self.cols_exact_test, self.cols_unsorted_test]
     
     # tests - list of test methods to run
@@ -123,6 +123,12 @@ class ResultsTester():
         # No possible sorts match - test fails
         return False
 
+    def rows_sanity_test(self, threshold=.5):
+        """Tests if the length of student rows is close to length of grader rows
+           Gives points for "reasonable" attempts
+        """
+        return (abs(1.0*len(self.student_rows) - len(self.grader_rows)) / len(self.grader_rows)) <= threshold
+
     def cols_exact_test(self):
         return (self.student_cols == self.grader_cols)
 
@@ -131,6 +137,12 @@ class ResultsTester():
 
     def cols_unsorted_test(self):
         return (sorted(self.student_cols) == sorted(self.grader_cols))
+
+    def cols_sanity_test(self, threshold=.5):
+        """Tests if the length of student columns is close to length of grader columns
+           Gives points for "reasonable" attempts
+        """
+        return (abs(1.0*len(self.student_cols) - len(self.grader_cols)) / len(self.grader_cols)) <= threshold
 
 if __name__=="__main__":
     Grader = Grader("lahman", "localhost", "root", "")
