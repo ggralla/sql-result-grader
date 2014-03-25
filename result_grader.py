@@ -38,32 +38,46 @@ class Grader:
         grader_cols, grader_rows = self.execute_query(grader_query)
 
         Tester = ResultsTester(student_cols, student_rows, grader_cols, grader_rows)
-        tests = Tester.required_tests + Tester.optional_tests
+        tests = Tester.default_tests
 
         print "Grader Results:"
         print self.str_results(grader_cols, grader_rows)
         print "Student Results:"
         print self.str_results(student_cols, student_rows)
 
-        Tester.run_tests(tests)
+        score = Tester.run_tests(tests)
+        print "Final Score:", score
 
-# TODO: Better way to choose which tests are run, and in what order
 class ResultsTester():
-
     def __init__(self, student_cols, student_rows, grader_cols, grader_rows):
         self.student_cols = student_cols
         self.student_rows = student_rows
         self.grader_cols = grader_cols
         self.grader_rows = grader_rows
 
-        self.required_tests = [self.rows_count_test, self.cols_count_test, self.rows_unsorted_test, self.rows_sanity_test, self.cols_sanity_test]
-        self.optional_tests = [self.rows_exact_test, self.cols_exact_test, self.cols_unsorted_test]
+        self.default_tests = {
+            self.rows_count_test: .1,
+            self.cols_count_test: .1,
+            self.rows_unsorted_test: .1,
+            self.cols_exact_test: .1,
+            self.rows_exact_test: .05,
+            self.cols_unsorted_test: .05,
+            self.rows_sanity_test: .25,
+            self.cols_sanity_test: .25
+        }
     
-    # tests - list of test methods to run
-    def run_tests(self, tests):
-        for test in tests:
+    # tests - dictionary of test methods to run, test => points
+    def run_tests(self, test_dict):
+        assert sum(test_dict.values()) == 1, "Test scores do not add up to 1"
+        score = 0
+
+        for test, value in test_dict.iteritems():
             result = test()
+            if result:
+                score += value
             print "Running %s: %s" % (test.__name__, result)
+
+        return score
 
     def rows_exact_test(self):
         return (self.student_rows == self.grader_rows)
