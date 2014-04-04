@@ -1,7 +1,6 @@
 import itertools
 import MySQLdb
 import numpy as np
-import traceback
 
 class InvalidQuery(Exception):
     pass
@@ -33,17 +32,18 @@ class Grader:
             text += ", ".join(map(str, row)) + "\n"
         return text
 
-    def grade_query(self, student_query, grader_query, options=None):
+    def grade_query(self, student_query, grader_query, print_results=False, options=None):
         student_cols, student_rows = self.execute_query(student_query)
         grader_cols, grader_rows = self.execute_query(grader_query)
+        
+        if print_results:
+            print "Grader Results:"
+            print self.str_results(grader_cols, grader_rows)
+            print "Student Results:"
+            print self.str_results(student_cols, student_rows)
 
         Tester = ResultsTester(student_cols, student_rows, grader_cols, grader_rows)
         tests = Tester.default_tests
-
-        print "Grader Results:"
-        print self.str_results(grader_cols, grader_rows)
-        print "Student Results:"
-        print self.str_results(student_cols, student_rows)
 
         score = Tester.run_tests(tests)
         print "Final Score:", score
@@ -56,34 +56,60 @@ class ResultsTester():
         self.grader_rows = grader_rows
 
         self.default_tests = {
-            self.rows_count_test: .1,
-            self.cols_count_test: .1,
             self.rows_unsorted_test: .1,
-            self.cols_exact_test: .1,
-            self.rows_exact_test: .05,
             self.cols_unsorted_test: .05,
-            self.rows_sanity_test: .25,
-            self.cols_sanity_test: .25
+            self.rows_exact_test: .05,
+            self.cols_exact_test: .1,
+            self.rows_count_linear_test: 0,
+            self.cols_count_linear_test: 0,
+            self.rows_count_close_test: .25,
+            self.cols_count_close_test: .25,
+            self.rows_count_exact_test: .1,
+            self.cols_count_exact_test: .1,
         }
     
     # tests - dictionary of test methods to run, test => points
     def run_tests(self, test_dict):
-        assert sum(test_dict.values()) == 1, "Test scores do not add up to 1"
+        # Can't do straight equality check because of float imprecision
+        assert abs(sum(test_dict.values()) - 1.0) < .01, "Test scores do not add up to 1"
         score = 0
 
+        failed_tests = []
+        passed_tests = []
         for test, value in test_dict.iteritems():
             result = test()
-            if result:
-                score += value
-            print "Running %s: %s" % (test.__name__, result)
+            points = float(result) * value
+            score += points 
+            test_str = "%s: %s (%s of %s points)" % (test.__name__, result, points, value)
+            if float(result) == 1.0:
+                passed_tests.append(test_str)
+            else:
+                failed_tests.append(test_str)
+
+        print "Passed Tests:"
+        for test in passed_tests:
+            print test
+
+        print "\nFailed Tests:"
+        for test in failed_tests:
+            print test
 
         return score
 
     def rows_exact_test(self):
         return (self.student_rows == self.grader_rows)
 
-    def rows_count_test(self):
+    def rows_count_linear_test(self):
+        return max(1 - abs(1 - 1.0 * len(self.student_rows) / len(self.grader_rows)), 0)
+
+    def rows_count_exact_test(self):
         return (len(self.student_rows) == len(self.grader_rows))
+
+    def rows_count_close_test(self, threshold=.5):
+        """Tests if the length of student rows is close to length of grader rows
+           Gives points for "reasonable" attempts
+        """
+        return (abs(1.0 * len(self.student_rows) - len(self.grader_rows)) / len(self.grader_rows)) <= threshold
 
     def rows_unsorted_test(self):
         """Tests if student and grader rows match, ignoring column and row order
@@ -104,7 +130,7 @@ class ResultsTester():
         # TODO: Add more shortcuts (e.g. column/row "sum" checking)
 
         # If row or col counts don't match, fail immediately
-        if (not self.cols_count_test()) or (not self.rows_count_test()):
+        if (not self.cols_count_exact_test()) or (not self.rows_count_exact_test()):
             return False
         
         if self.rows_exact_test():
@@ -137,26 +163,23 @@ class ResultsTester():
         # No possible sorts match - test fails
         return False
 
-    def rows_sanity_test(self, threshold=.5):
-        """Tests if the length of student rows is close to length of grader rows
-           Gives points for "reasonable" attempts
-        """
-        return (abs(1.0*len(self.student_rows) - len(self.grader_rows)) / len(self.grader_rows)) <= threshold
-
     def cols_exact_test(self):
         return (self.student_cols == self.grader_cols)
 
-    def cols_count_test(self):
+    def cols_count_linear_test(self):
+        return max(1 - abs(1 - 1.0 * len(self.student_cols) / len(self.grader_cols)), 0)
+
+    def cols_count_exact_test(self):
         return (len(self.student_cols) == len(self.grader_cols))
 
-    def cols_unsorted_test(self):
-        return (sorted(self.student_cols) == sorted(self.grader_cols))
-
-    def cols_sanity_test(self, threshold=.5):
+    def cols_count_close_test(self, threshold=.5):
         """Tests if the length of student columns is close to length of grader columns
            Gives points for "reasonable" attempts
         """
-        return (abs(1.0*len(self.student_cols) - len(self.grader_cols)) / len(self.grader_cols)) <= threshold
+        return (abs(1.0 * len(self.student_cols) - len(self.grader_cols)) / len(self.grader_cols)) <= threshold
+
+    def cols_unsorted_test(self):
+        return (sorted(self.student_cols) == sorted(self.grader_cols))
 
 if __name__=="__main__":
     Grader = Grader("lahman", "localhost", "root", "")
