@@ -66,6 +66,7 @@ class ResultsTester():
             self.cols_count_close_test: .25,
             self.rows_count_exact_test: .1,
             self.cols_count_exact_test: .1,
+            self.rows_unsorted_guess: 0,
         }
     
     # tests - dictionary of test methods to run, test => points
@@ -110,6 +111,18 @@ class ResultsTester():
            Gives points for "reasonable" attempts
         """
         return (abs(1.0 * len(self.student_rows) - len(self.grader_rows)) / len(self.grader_rows)) <= threshold
+
+    def rows_unsorted_guess(self):
+        """
+        A quick guess of whether rows_unsorted_test will pass
+        First each row is indiviudally sorted, then the list of rows is sorted
+        Can return false passes (incorrectly guess that unsorted data matches)
+        TODO: Optimize sorts using numpy 
+        """
+        sorted_grader_rows = sorted(sorted(row) for row in self.grader_rows)
+        sorted_student_rows = sorted(sorted(row) for row in self.student_rows)
+        
+        return (sorted_grader_rows == sorted_student_rows)
 
     def rows_unsorted_test(self):
         """Tests if student and grader rows match, ignoring column and row order
