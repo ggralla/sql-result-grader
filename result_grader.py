@@ -43,10 +43,11 @@ class Grader:
             print self.str_results(student_cols, student_rows)
 
         Tester = ResultsTester(student_cols, student_rows, grader_cols, grader_rows)
-        tests = Tester.default_tests
 
-        score = Tester.run_tests(tests)
+        score, hints = Tester.run_rubric_tests()
         print "Final Score:", score
+        if hints:
+            print "Hints:", " ".join(hints)
 
 class ResultsTester():
     def __init__(self, student_cols, student_rows, grader_cols, grader_rows):
@@ -97,6 +98,63 @@ class ResultsTester():
 
         return score
 
+    def run_rubric_tests(self):
+        """Instead of using a weighted average to calculate a detailed score, use a "rubric" approach
+        Logical groupings of tests determine a score bucket for the student's query
+        """
+        rows_tests = [self.rows_count_close_test, self.rows_count_exact_test, self.rows_unsorted_guess, self.rows_exact_test]
+        cols_tests = [self.cols_count_close_test, self.cols_count_exact_test, self.cols_unsorted_test, self.cols_exact_test]
+        results = {}
+        # TODO: implement keyword_test
+        results["keyword_test"] = True
+        # TODO: Don't run unneccesary tests, clearer test logic
+        for test in rows_tests + cols_tests:
+            result = test()
+            results[test] = result
+
+        if results[self.rows_exact_test] and results[self.cols_exact_test] and results["keyword_test"]:
+            # "Perfect"
+            score = 1.0
+        elif results[self.rows_unsorted_guess] and results["keyword_test"]:
+            # "Really Close"
+            score = .8
+        elif ((results[self.cols_unsorted_test] and results[self.rows_count_close_test]) or (results[self.cols_count_exact_test] and results[self.rows_count_exact_test]) or (results[self.cols_exact_test])) and results["keyword_test"]:
+            # "Nice Try"
+            score = .6
+        elif (results[self.rows_count_close_test] and results[self.cols_count_close_test]):
+            # "Decent Attempt"
+            score = .4
+        else:
+            # "Fail"
+            score = .0
+        
+        # TODO: Make this sane
+        hints = []
+        if not results["keyword_test"]:
+            hints.appned("Missing SQL Keyword")
+
+        if not results[self.rows_count_exact_test]:
+            if len(self.student_rows) > len(self.grader_rows):
+                hints.append("Too many rows.")
+            else:
+                hints.append("Too few rows.")
+        
+        if not results[self.cols_count_exact_test]:
+            if len(self.student_cols) > len(self.grader_cols):
+                hints.append("Too many columns.")
+            else:
+                hints.append("Too few columns.")
+        elif not results[self.cols_unsorted_test]:
+            hints.append("Columns are named incorrectly.")
+        elif not results[self.cols_exact_test]:
+            hints.append("Columns are out of order.")
+        elif results[self.rows_unsorted_guess] and not results[self.rows_exact_test]:
+            hints.append("Rows are out of order.")
+        elif results[self.rows_count_exact_test] and not results[self.rows_unsorted_guess]:
+            hints.append("Incorrect column calculation")
+
+        return score, hints
+
     def rows_exact_test(self):
         return (self.student_rows == self.grader_rows)
 
@@ -118,6 +176,7 @@ class ResultsTester():
         First each row is indiviudally sorted, then the list of rows is sorted
         Can return false passes (incorrectly guess that unsorted data matches)
         TODO: Optimize sorts using numpy 
+        TODO: Improve accuracy by doing the same sorts on columns of data 
         """
         sorted_grader_rows = sorted(sorted(row) for row in self.grader_rows)
         sorted_student_rows = sorted(sorted(row) for row in self.student_rows)
